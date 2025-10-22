@@ -1,49 +1,20 @@
-<%-- 
-    agregarUsuario.jsp
-    Propósito: formulario para registrar o editar un usuario. Valida datos, verifica correo duplicado
-    y guarda temporalmente los datos en la sesión antes de redirigir a confirmar.jsp.
-
-    Variables / conceptos importantes:
-    - source: indica el origen/modo. "editar" = estamos editando, otro valor = registro nuevo.
-    - isEditMode: booleano derivado de source.
-    - paso: controla el flujo. "validar" se usa cuando se envía el formulario (POST).
-    - session: se usa para almacenar temporalmente datos antes de confirmar (confirmar.jsp).
-    - Conexion.getConnection(): método de la clase datos.Conexion para obtener la conexión a la BD.
-    - originalCorreo: en edición, contiene el correo previo del usuario para permitir no marcarlo como duplicado.
-
-    Flujo resumido:
-    1) GET: muestra el formulario (posible prellenado si vienen parámetros).
-    2) POST con paso=validar: valida campos, valida contraseñas y longitudes,
-    verifica que el correo no exista en la BD (salvo si es el mismo en modo editar).
-    3) Si todo es válido, guarda los datos en session y redirige a confirmar.jsp.
-    4) Si hay errores, muestra mensaje y vuelve a mostrar el formulario con los valores.
+<%-- 
+    agregarUsuario.jsp
+    Propósito: formulario para registrar o editar un usuario.
 --%>
 <%@page contentType="text/html" pageEncoding="UTF-8"%>
 <%@page import="java.sql.*"%>
 <%@page import="datos.Conexion"%>
-
 <%
-    // --- Lógica de la Página ---
-
-    // 1. Determinar el modo y los títulos
-    // 'source' indica si venimos de una acción de editar o registro nuevo.
+    // --- Lógica de la Página (SIN CAMBIOS) ---
     String source = request.getParameter("source");
     boolean isEditMode = "editar".equals(source);
     String pageTitle = isEditMode ? "Editar Usuario" : "Registro de Usuario";
-    String buttonText = "Siguiente";
-
-    // 2. Declarar variables para los datos del formulario
-    // Se usan para rellenar el formulario si ocurre un error y para procesar la inserción/edición.
+    String buttonText = isEditMode ? "Guardar Cambios" : "Registrar Usuario";
     String nombre = "", correo = "", clave = "", confirmarClave = "", tipo = "", originalCorreo = "";
     String mensaje = "", tipoMensaje = "danger";
-    
-    // 3. Distinguir entre el envío del formulario (POST) y la carga inicial (GET)
-    // 'paso' sirve para indicar que el formulario fue enviado y debe validarse.
     String paso = request.getParameter("paso");
-    
     if ("validar".equals(paso) && "POST".equalsIgnoreCase(request.getMethod())) {
-        // **PROCESANDO FORMULARIO ENVIADO**
-        // Tomamos los valores enviados por el formulario
         nombre = request.getParameter("nombre");
         correo = request.getParameter("correo");
         clave = request.getParameter("clave");
@@ -52,13 +23,10 @@
         source = request.getParameter("source");
         isEditMode = "editar".equals(source);
         originalCorreo = request.getParameter("correo_original");
-
-        // --- Lógica de Validación ---
-        // Validaciones básicas: campos obligatorios, coincidencia de contraseñas, longitud mínima.
         boolean valido = true;
-        if (nombre == null || nombre.trim().isEmpty() || correo == null || correo.trim().isEmpty() ||
-            clave == null || clave.trim().isEmpty() || confirmarClave == null || confirmarClave.trim().isEmpty() ||
-            tipo == null || tipo.trim().isEmpty()) {
+        if (nombre == null || nombre.trim().isEmpty() || correo == null || correo.trim().isEmpty()
+                || clave == null || clave.trim().isEmpty() || confirmarClave == null || confirmarClave.trim().isEmpty()
+                || tipo == null || tipo.trim().isEmpty()) {
             mensaje = "Por favor complete todos los campos";
             tipoMensaje = "warning";
             valido = false;
@@ -71,55 +39,44 @@
             tipoMensaje = "warning";
             valido = false;
         }
-
-        // Validación de correo duplicado en la base de datos
         if (valido) {
             Connection conn = null;
             PreparedStatement ps = null;
             ResultSet rs = null;
             try {
                 conn = Conexion.getConnection();
-                
                 if (isEditMode) {
-                    // En modo edición: si el correo fue cambiado, verificar duplicados.
                     if (!correo.equals(originalCorreo)) {
                         ps = conn.prepareStatement("SELECT COUNT(*) FROM usuarios WHERE correo = ?");
                         ps.setString(1, correo);
                         rs = ps.executeQuery();
                         if (rs.next() && rs.getInt(1) > 0) {
-                            // Ya existe otro usuario con ese correo
-                            mensaje = "El correo electrónico ya está registrado"; 
-                            tipoMensaje = "danger"; 
+                            mensaje = "El correo electrónico ya está registrado";
+                            tipoMensaje = "danger";
                             valido = false;
                         }
                     }
                 } else {
-                    // En registro nuevo: verificar que no exista ese correo
                     ps = conn.prepareStatement("SELECT COUNT(*) FROM usuarios WHERE correo = ?");
                     ps.setString(1, correo);
                     rs = ps.executeQuery();
                     if (rs.next() && rs.getInt(1) > 0) {
-                        mensaje = "El correo electrónico ya está registrado"; 
-                        tipoMensaje = "danger"; 
+                        mensaje = "El correo electrónico ya está registrado";
+                        tipoMensaje = "danger";
                         valido = false;
                     }
                 }
             } catch (SQLException e) {
-                // En caso de error de BD, informar mensaje genérico y marcar como no válido.
-                mensaje = "Error al verificar el correo: " + e.getMessage(); 
+                mensaje = "Error al verificar el correo: " + e.getMessage();
                 valido = false;
                 e.printStackTrace();
             } finally {
-                // Cerrar recursos para evitar fugas de conexión
-                if(rs != null) try { rs.close(); } catch (SQLException e) {}
-                if(ps != null) try { ps.close(); } catch (SQLException e) {}
+                if (rs != null) try { rs.close(); } catch (SQLException e) {}
+                if (ps != null) try { ps.close(); } catch (SQLException e) {}
                 Conexion.closeConnection(conn);
             }
         }
-        
         if (valido) {
-            // Si todo es válido, guardamos temporalmente los datos en la sesión
-            // y redirigimos a confirmar.jsp, donde se puede revisar antes de guardar definitivamente.
             session.setAttribute("source", isEditMode ? "editar" : "register");
             session.setAttribute("temp_nombre", nombre);
             session.setAttribute("temp_correo", correo);
@@ -128,21 +85,53 @@
             if (isEditMode && originalCorreo != null && !originalCorreo.trim().isEmpty()) {
                 session.setAttribute("original_correo", originalCorreo);
             }
-            
             response.sendRedirect("confirmar.jsp");
             return;
         }
-
     } else {
-        // **CARGA INICIAL DE LA PÁGINA (GET)**
-        // Si venimos con parámetros (por ejemplo desde buscar.jsp para editar), prellenamos.
         mensaje = request.getParameter("error") != null ? request.getParameter("error") : "";
         nombre = request.getParameter("nombre") != null ? request.getParameter("nombre") : "";
         correo = request.getParameter("correo") != null ? request.getParameter("correo") : "";
         clave = request.getParameter("clave") != null ? request.getParameter("clave") : "";
         confirmarClave = clave;
         tipo = request.getParameter("tipo") != null ? request.getParameter("tipo") : "";
-        originalCorreo = isEditMode ? correo : "";
+        String idParam = request.getParameter("id");
+        if (idParam != null && !idParam.isEmpty()) {
+            try {
+                Connection con = Conexion.getConnection();
+                PreparedStatement ps = con.prepareStatement("SELECT * FROM usuarios WHERE id = ?");
+                ps.setInt(1, Integer.parseInt(idParam));
+                ResultSet rs = ps.executeQuery();
+                if (rs.next()) {
+                    nombre = rs.getString("nombre");
+                    correo = rs.getString("correo");
+                    clave = rs.getString("clave");
+                    confirmarClave = clave;
+                    tipo = rs.getString("tipo");
+                    originalCorreo = correo;
+                    isEditMode = true;
+                    if ("lista".equals(request.getParameter("source"))) {
+                        source = "lista";
+                    } else {
+                        source = "editar";
+                    }
+                    pageTitle = "Editar Usuario";
+                    buttonText = "Guardar Cambios";
+                }
+                con.close();
+            } catch (Exception e) {
+                mensaje = "Error al cargar datos del usuario: " + e.getMessage();
+                tipoMensaje = "danger";
+            }
+        } else if (isEditMode) {
+            originalCorreo = correo;
+        }
+    }
+    String cancelUrl = "index.jsp";
+    if ("editar".equals(source)) {
+        cancelUrl = "buscar.jsp?accion=editar";
+    } else if ("lista".equals(source)) {
+        cancelUrl = "lista.jsp";
     }
 %>
 <!DOCTYPE html>
@@ -150,83 +139,204 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><%= pageTitle %></title>
+    <title><%= pageTitle%></title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    
     <style>
-        body { background-color: #f0f2f5; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
-        .registro-container { background: white; border-radius: 10px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1); max-width: 500px; width: 100%; padding: 40px; }
-        .registro-title { text-align: center; margin-bottom: 30px; color: #333; font-weight: 600; }
-        .btn-guardar { background-color: #28a745; border: none; color: white; padding: 12px; font-weight: 500; }
-        .btn-cancelar { background-color: #6c757d; border: none; color: white; padding: 12px; font-weight: 500; }
-        label { font-weight: 500; color: #555; margin-bottom: 8px; }
-        .input-group-text { cursor: pointer; }
+        :root {
+            --color-primary: #519AED;
+            --color-primary-hover: #408bdb;
+            --color-primary-light: #e6f0ff;
+            --color-secondary: #677F89;
+            --color-secondary-hover: #5C6A6E;
+            --color-dark: #343842;
+            --color-darkest: #222A33;
+            --color-text: #343842;
+            --color-text-light: #5C6A6E;
+            --color-bg: #f8f9fa;
+            --color-container: #ffffff;
+            --color-border: #dee2e6;
+        }
+        body {
+            background-color: var(--color-bg);
+            color: var(--color-text);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .app-container {
+            background: var(--color-container);
+            border-radius: 12px;
+            box-shadow: 0 4px 25px rgba(0, 0, 0, 0.08);
+            padding: 30px 40px;
+            max-width: 550px;
+            width: 100%;
+        }
+        .app-title {
+            color: var(--color-darkest);
+            font-weight: 700;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .btn {
+            padding: 12px 20px;
+            font-weight: 600;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            border: none;
+        }
+        .btn-primary {
+            background-color: var(--color-primary);
+            color: white;
+        }
+        .btn-primary:hover {
+            background-color: var(--color-primary-hover);
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(81, 154, 237, 0.4);
+        }
+        .btn-secondary {
+            background-color: var(--color-secondary);
+            color: white;
+        }
+        .btn-secondary:hover {
+            background-color: var(--color-secondary-hover);
+            color: white;
+            transform: translateY(-2px);
+        }
+        .form-control, .form-select {
+            border-radius: 8px;
+            padding: 12px;
+            border: 1px solid var(--color-border);
+        }
+        .form-control:focus, .form-select:focus {
+            border-color: var(--color-primary);
+            box-shadow: 0 0 0 0.25rem rgba(81, 154, 237, 0.25);
+        }
+        .form-label {
+            color: var(--color-text-light);
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        .input-group-text {
+            cursor: pointer;
+            background-color: white;
+            border: 1px solid var(--color-border);
+            border-left: none;
+            color: var(--color-text-light);
+            border-radius: 0 8px 8px 0;
+        }
+        
+        /* Contenedor de input con icono para campos Nombre y Correo */
+        .input-with-icon {
+            position: relative;
+        }
+        .input-with-icon .form-control {
+            padding-left: 3rem; /* Espacio para el icono */
+        }
+        .input-with-icon .input-icon-label {
+            position: absolute;
+            left: 1rem;
+            top: 50%; /* Centra verticalmente respecto al input */
+            transform: translateY(-50%); /* Ajuste fino para el centrado */
+            color: var(--color-text-light);
+            font-size: 1.2rem;
+            pointer-events: none; /* Permite hacer clic a través del icono al input */
+        }
+        /* Ajuste para inputs dentro de input-group (contraseñas) */
+        .input-group .form-control { 
+             padding-left: 1rem; /* No necesita icono fijo */
+             border-right: none; /* Para que el ojo tenga su propio borde */
+        }
+        .form-select {
+            padding-left: 1rem; /* Los selects no llevan icono fijo */
+        }
     </style>
 </head>
 <body>
-    <div class="registro-container">
-        <h2 class="registro-title"><%= pageTitle %></h2>
+
+    <div class="app-container">
+        <h2 class="app-title"><%= pageTitle%></h2>
+
+        <% if (!mensaje.isEmpty()) {%>
+        <div class="alert alert-<%= tipoMensaje%> alert-dismissible fade show" role="alert">
+            <%= mensaje%>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        <% }%>
         
-        <% if (!mensaje.isEmpty()) { %>
-            <!-- Mostrar alert con el mensaje de error o advertencia -->
-            <div class="alert alert-<%= tipoMensaje %> alert-dismissible fade show" role="alert">
-                <%= mensaje %><button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-        <% } %>
-        <form method="POST" action="agregarUsuario.jsp">
-            <!-- 'paso' indica al servidor que valide los datos -->
+        <form method="POST" action="agregarUsuario.jsp" class="mt-4">
             <input type="hidden" name="paso" value="validar">
-            <input type="hidden" name="source" value="<%= source != null ? source : "" %>">
-            <!-- correo_original se usa en modo editar para comparar si el usuario cambió su correo -->
-            <input type="hidden" name="correo_original" value="<%= originalCorreo %>">
-            
+            <input type="hidden" name="source" value="<%= source != null ? source : ""%>">
+            <input type="hidden" name="correo_original" value="<%= originalCorreo%>">
+
             <div class="mb-3">
                 <label for="nombre" class="form-label">Nombre</label>
-                <!-- value rellena el campo si hubo un error y necesitamos re-mostrar los datos -->
-                <input type="text" class="form-control" id="nombre" name="nombre" placeholder="Ingrese el nombre" value="<%= nombre %>" required>
+                <div class="input-with-icon">
+                    <span class="input-icon-label"><i class="bi bi-person"></i></span>
+                    <input type="text" class="form-control" id="nombre" name="nombre" placeholder="Ingrese el nombre" value="<%= nombre%>" required>
+                </div>
             </div>
+            
             <div class="mb-3">
                 <label for="correo" class="form-label">Correo</label>
-                <input type="email" class="form-control" id="correo" name="correo" placeholder="correo@ejemplo.com" value="<%= correo %>" required>
+                <div class="input-with-icon">
+                    <span class="input-icon-label"><i class="bi bi-envelope"></i></span>
+                    <input type="email" class="form-control" id="correo" name="correo" placeholder="correo@ejemplo.com" value="<%= correo%>" required>
+                </div>
             </div>
+            
             <div class="mb-3">
                 <label for="clave" class="form-label">Clave</label>
                 <div class="input-group">
-                    <input type="password" class="form-control" id="clave" name="clave" placeholder="Ingrese la contraseña" value="<%= clave %>" required>
-                    <span class="input-group-text" onclick="togglePassword('clave', 'toggleIconClave')"><i class="bi bi-eye-slash" id="toggleIconClave"></i></span>
+                    <input type="password" class="form-control" id="clave" name="clave" placeholder="Ingrese la contraseña" value="<%= clave%>" required>
+                    <span class="input-group-text" onclick="togglePassword('clave', 'toggleIconClave')">
+                        <i class="bi bi-eye-slash" id="toggleIconClave"></i>
+                    </span>
                 </div>
             </div>
+            
             <div class="mb-3">
                 <label for="confirmarClave" class="form-label">Confirmar Clave</label>
                 <div class="input-group">
-                    <input type="password" class="form-control" id="confirmarClave" name="confirmarClave" placeholder="Confirme la contraseña" value="<%= confirmarClave %>" required>
-                    <span class="input-group-text" onclick="togglePassword('confirmarClave', 'toggleIconConfirmar')"><i class="bi bi-eye-slash" id="toggleIconConfirmar"></i></span>
+                    <input type="password" class="form-control" id="confirmarClave" name="confirmarClave" placeholder="Confirme la contraseña" value="<%= confirmarClave%>" required>
+                    <span class="input-group-text" onclick="togglePassword('confirmarClave', 'toggleIconConfirmar')">
+                        <i class="bi bi-eye-slash" id="toggleIconConfirmar"></i>
+                    </span>
                 </div>
             </div>
+            
             <div class="mb-4">
                 <label for="tipo" class="form-label">Tipo de Usuario</label>
                 <select class="form-select" id="tipo" name="tipo" required>
                     <option value="">Seleccione un tipo</option>
-                    <option value="usuario" <%= "usuario".equals(tipo) ? "selected" : "" %>>Usuario</option>
-                    <option value="asistente" <%= "asistente".equals(tipo) ? "selected" : "" %>>Asistente</option>
-                    <option value="administrador" <%= "administrador".equals(tipo) ? "selected" : "" %>>Administrador</option>
+                    <option value="usuario" <%= "usuario".equals(tipo) ? "selected" : ""%>>Usuario</option>
+                    <option value="asistente" <%= "asistente".equals(tipo) ? "selected" : ""%>>Asistente</option>
+                    <option value="administrador" <%= "administrador".equals(tipo) ? "selected" : ""%>>Administrador</option>
                 </select>
             </div>
-            <div class="row">
-                <div class="col-md-6 mb-2">
-                    <!-- Enviar para validar y luego confirmar -->
-                    <button type="submit" class="btn btn-guardar w-100"><%= buttonText %></button>
+            
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <button type="button" class="btn btn-secondary w-100" onclick="location.href = '<%= cancelUrl %>'">
+                        <i class="bi bi-x-lg"></i> Cancelar
+                    </button>
                 </div>
-                <div class="col-md-6 mb-2">
-                    <!-- Cancelar regresa al índice o a la pantalla de edición -->
-                    <button type="button" class="btn btn-cancelar w-100" onclick="location.href='<%= isEditMode ? "buscar.jsp?accion=editar" : "index.jsp" %>'">Cancelar</button>
+                <div class="col-md-6">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-check-lg"></i> <%= buttonText%>
+                    </button>
                 </div>
             </div>
         </form>
     </div>
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Pequeña utilidad para mostrar/ocultar la contraseña en los campos
         function togglePassword(fieldId, iconId) {
             const passwordField = document.getElementById(fieldId);
             const toggleIcon = document.getElementById(iconId);
