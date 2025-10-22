@@ -1,7 +1,8 @@
 <%-- 
     lista.jsp
     Propósito: Mostrar todos los usuarios en una tabla.
-:)))))
+:((((
+**
 --%>
 <%@page contentType="text/html" pageEncoding="UTF-8"%>
 <%@page import="java.sql.*"%>
