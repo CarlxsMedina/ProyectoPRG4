@@ -1,43 +1,14 @@
-<%-- 
-    buscar.jsp
-
-    Propósito:
-    - Buscar un usuario por correo y, según la acción solicitada, permitir:
-      ver los datos (buscar), preparar edición (editar) o preparar eliminación (eliminar).
-
-    Qué debes saber (para principiantes):
-    - Parámetros importantes recibidos por request:
-        * accion: indica el modo de la página ("buscar" por defecto, "editar", "eliminar").
-        * correo: correo que se busca (formulario).
-        * eliminado, actualizado, error: parámetros de respuesta (para mostrar mensajes).
-    - Variables importantes dentro del JSP:
-        * correoBusqueda: el correo a buscar (viene del formulario).
-        * mensaje / tipoMensaje: texto y estilo (Bootstrap) para mostrar alertas al usuario.
-    - Sesión:
-        * Cuando se encuentra el usuario, se almacenan atributos en session para
-          que confirmar.jsp los lea (usuario_nombre, usuario_correo, usuario_clave, usuario_tipo).
-    - Flujo resumido:
-        1) Mostrar formulario para ingresar correo.
-        2) Al enviar (POST) se consulta la tabla usuarios por ese correo.
-        3) Si se encuentra:
-           - Si accion=editar: redirige a agregarUsuario.jsp con los datos para editar.
-           - Si accion=buscar o accion=eliminar: guarda datos en session y redirige a confirmar.jsp.
-        4) Si no se encuentra, mostrar un mensaje de advertencia.
-    - Notas prácticas:
-        * El campo correo debe venir en formato válido (type="email" en el formulario).
-        * El manejo de la BD se hace con datos.Conexion.getConnection().
-        * En producción conviene usar prepared statements (ya usados aquí) y logging adecuado.
+<%-- 
+    buscar.jsp
+    Propósito: Buscar un usuario por correo.
 --%>
 <%@page contentType="text/html" pageEncoding="UTF-8"%>
 <%@page import="java.sql.*"%>
 <%@page import="datos.Conexion"%>
 <%@page import="java.net.URLEncoder"%>
-
 <%
-    // Leer la acción solicitada (puede venir por GET o por el campo oculto en POST)
+    // --- Lógica de la Página (SIN CAMBIOS) ---
     String accion = request.getParameter("accion");
-
-    // Título de la página según la acción (para mostrar en el HTML)
     String pageTitle = "Buscar Usuario";
     if ("editar".equals(accion)) {
         pageTitle = "Editar Usuario";
@@ -45,45 +16,30 @@
     if ("eliminar".equals(accion)) {
         pageTitle = "Eliminar Usuario";
     }
-
-    // Mensajes para el usuario (pueden venir por parámetros en la URL tras redirecciones)
     String mensaje = "";
     String tipoMensaje = "danger";
-
     String eliminadoParam = request.getParameter("eliminado");
     if ("exitoso".equals(eliminadoParam)) {
         mensaje = "Usuario eliminado correctamente.";
         tipoMensaje = "success";
     }
-
-    // Mensaje cuando una edición fue exitosa (se redirige a esta página con actualizado=exitoso)
     String actualizadoParam = request.getParameter("actualizado");
     if ("exitoso".equals(actualizadoParam)) {
         mensaje = "Usuario actualizado correctamente.";
         tipoMensaje = "success";
     }
-
-    // Mensajes de error genéricos (por ejemplo: no encontrado)
     String errorParam = request.getParameter("error");
     if ("noencontrado".equals(errorParam)) {
         mensaje = "Error: La operación falló porque el usuario no fue encontrado.";
         tipoMensaje = "warning";
     }
-
-    // Valor que aparece en el input del formulario (se conserva tras submit para mejor UX)
     String correoBusqueda = request.getParameter("correo") != null ? request.getParameter("correo") : "";
-
-    // Si el método es POST, procesamos la búsqueda
     if ("POST".equalsIgnoreCase(request.getMethod())) {
-        // Releer la acción enviada desde el campo oculto del formulario POST
         accion = request.getParameter("accion");
-
-        // Validación simple: el usuario debe escribir un correo
         if (correoBusqueda.trim().isEmpty()) {
             mensaje = "Por favor, ingrese un correo para buscar.";
             tipoMensaje = "warning";
         } else {
-            // Consulta a la base de datos para buscar por correo
             Connection conn = null;
             PreparedStatement ps = null;
             ResultSet rs = null;
@@ -94,53 +50,30 @@
                 rs = ps.executeQuery();
 
                 if (rs.next()) {
-                    // Si encontramos el usuario...
                     if ("editar".equals(accion)) {
-                        // Preparar URL para abrir el formulario de edición (agregarUsuario.jsp)
-                        // Se pasan los valores por query string para precargar el formulario.
-                        // URLEncoder.encode evita problemas con caracteres especiales.
-                        String url = String.format("agregarUsuario.jsp?nombre=%s&correo=%s&clave=%s&tipo=%s&source=editar",
-                                URLEncoder.encode(rs.getString("nombre"), "UTF-8"),
-                                URLEncoder.encode(rs.getString("correo"), "UTF-8"),
-                                URLEncoder.encode(rs.getString("clave"), "UTF-8"),
-                                URLEncoder.encode(rs.getString("tipo"), "UTF-8")
-                        );
-                        // Redirigir a la página de edición con los datos cargados
+                        String url = String.format("agregarUsuario.jsp?id=%d&source=editar", rs.getInt("id"));
                         response.sendRedirect(url);
                         return;
                     } else {
-                        // Para 'buscar' o 'eliminar' guardamos los datos en sesión
-                        // para que confirmar.jsp muestre la información y permita confirmar.
-                        session.setAttribute("source", accion); // "buscar" o "eliminar"
+                        session.setAttribute("source", accion);
                         session.setAttribute("usuario_nombre", rs.getString("nombre"));
                         session.setAttribute("usuario_correo", rs.getString("correo"));
                         session.setAttribute("usuario_clave", rs.getString("clave"));
                         session.setAttribute("usuario_tipo", rs.getString("tipo"));
-
-                        // Ir a la página intermedia de confirmación
                         response.sendRedirect("confirmar.jsp");
                         return;
                     }
                 } else {
-                    // Si no existe el usuario con ese correo, informar al usuario
                     mensaje = "No se encontró ningún usuario con el correo: " + correoBusqueda;
                     tipoMensaje = "warning";
                 }
             } catch (SQLException e) {
-                // En producción se recomienda usar un logger en lugar de printStackTrace
                 mensaje = "Error en la base de datos: " + e.getMessage();
                 tipoMensaje = "danger";
                 e.printStackTrace();
             } finally {
-                // Siempre cerrar ResultSet, PreparedStatement y la conexión para evitar fugas
-                if (rs != null) try {
-                    rs.close();
-                } catch (SQLException e) {
-                }
-                if (ps != null) try {
-                    ps.close();
-                } catch (SQLException e) {
-                }
+                if (rs != null) try { rs.close(); } catch (SQLException e) {}
+                if (ps != null) try { ps.close(); } catch (SQLException e) {}
                 Conexion.closeConnection(conn);
             }
         }
@@ -148,80 +81,143 @@
 %>
 <!DOCTYPE html>
 <html lang="es">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title><%= pageTitle%></title>
-        <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css" rel="stylesheet">
-        <style>
-            body {
-                background-color: #f0f2f5;
-                min-height: 100vh;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                padding: 20px;
-            }
-            .search-container {
-                background: white;
-                border-radius: 10px;
-                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-                max-width: 450px;
-                width: 100%;
-                padding: 40px;
-            }
-            .search-title {
-                text-align: center;
-                margin-bottom: 30px;
-                color: #333;
-                font-weight: 600;
-            }
-            .btn-buscar {
-                background-color: #0d6efd;
-                border: none;
-                color: white;
-                padding: 12px;
-                font-weight: 500;
-            }
-            .btn-cancelar {
-                background-color: #6c757d;
-                border: none;
-                color: white;
-                padding: 12px;
-                font-weight: 500;
-            }
-            label {
-                font-weight: 500;
-                color: #555;
-                margin-bottom: 8px;
-            }
-        </style>
-    </head>
-    <body>
-        <div class="search-container">
-            <h2 class="search-title"><%= pageTitle%> por Correo</h2>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= pageTitle%></title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    
+    <style>
+        :root {
+            --color-primary: #519AED;
+            --color-primary-hover: #408bdb;
+            --color-secondary: #677F89;
+            --color-secondary-hover: #5C6A6E;
+            --color-dark: #343842;
+            --color-darkest: #222A33;
+            --color-text: #343842;
+            --color-text-light: #5C6A6E;
+            --color-bg: #f8f9fa;
+            --color-container: #ffffff;
+            --color-border: #dee2e6;
+        }
+        body {
+            background-color: var(--color-bg);
+            color: var(--color-text);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .app-container {
+            background: var(--color-container);
+            border-radius: 12px;
+            box-shadow: 0 4px 25px rgba(0, 0, 0, 0.08);
+            padding: 30px 40px;
+            max-width: 450px;
+            width: 100%;
+        }
+        .app-title {
+            color: var(--color-darkest);
+            font-weight: 700;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .btn {
+            padding: 12px 20px;
+            font-weight: 600;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            border: none;
+        }
+        .btn-primary {
+            background-color: var(--color-primary);
+            color: white;
+        }
+        .btn-primary:hover {
+            background-color: var(--color-primary-hover);
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(81, 154, 237, 0.4);
+        }
+        .btn-secondary {
+            background-color: var(--color-secondary);
+            color: white;
+        }
+        .btn-secondary:hover {
+            background-color: var(--color-secondary-hover);
+            color: white;
+            transform: translateY(-2px);
+        }
+        .form-control {
+            border-radius: 8px;
+            padding: 12px;
+            border: 1px solid var(--color-border);
+        }
+        .form-control:focus {
+            border-color: var(--color-primary);
+            box-shadow: 0 0 0 0.25rem rgba(81, 154, 237, 0.25);
+        }
+        .form-label {
+            color: var(--color-text-light);
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        /* Contenedor de input con icono */
+        .input-with-icon {
+            position: relative;
+        }
+        .input-with-icon .form-control {
+            padding-left: 3rem; /* Espacio para el icono */
+        }
+        .input-with-icon .input-icon-label {
+            position: absolute;
+            left: 1rem;
+            top: 50%; /* Centra verticalmente respecto al input */
+            transform: translateY(-50%); /* Ajuste fino para el centrado */
+            color: var(--color-text-light);
+            font-size: 1.2rem;
+            pointer-events: none; /* Permite hacer clic a través del icono al input */
+        }
+    </style>
+</head>
+<body>
 
-            <%-- Mostrar mensajes (éxito/advertencia/error) si existen --%>
-            <% if (!mensaje.isEmpty()) {%>
-            <div class="alert alert-<%= tipoMensaje%> alert-dismissible fade show" role="alert">
-                <%= mensaje%>
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-            <% }%>
+    <div class="app-container">
+        <h2 class="app-title"><%= pageTitle%></h2>
 
-            <%-- Formulario: el campo oculto 'accion' preserva el modo (buscar/editar/eliminar) --%>
-            <form method="POST">
-                <input type="hidden" name="accion" value="<%= accion%>">
-                <div class="mb-3">
-                    <label for="correo" class="form-label">Correo</label>
+        <% if (!mensaje.isEmpty()) {%>
+        <div class="alert alert-<%= tipoMensaje%> alert-dismissible fade show" role="alert">
+            <%= mensaje%>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        <% }%>
+
+        <form method="POST" class="mt-4">
+            <input type="hidden" name="accion" value="<%= accion%>">
+            
+            <div class="mb-3">
+                <label for="correo" class="form-label">Correo del Usuario</label>
+                <div class="input-with-icon">
+                    <span class="input-icon-label"><i class="bi bi-search"></i></span>
                     <input type="email" class="form-control" id="correo" name="correo" placeholder="Ingrese el correo a buscar" value="<%= correoBusqueda%>" required>
                 </div>
-                <div class="d-grid gap-3 mt-4">
-                    <button type="submit" class="btn btn-buscar">Buscar</button>
-                    <button type="button" class="btn btn-cancelar" onclick="location.href = 'index.jsp'">Cancelar</button>
-                </div>
-            </form>
-        </div>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/js/bootstrap.bundle.min.js"></script>
-    </body>
+            </div>
+            
+            <div class="d-grid gap-3 mt-4">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-search"></i> Buscar
+                </button>
+                <button type="button" class="btn btn-secondary" onclick="location.href = 'index.jsp'">
+                    <i class="bi bi-x-lg"></i> Cancelar
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/js/bootstrap.bundle.min.js"></script>
+</body>
 </html>

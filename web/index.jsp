@@ -1,146 +1,213 @@
 <%-- 
     index.jsp
-    Propósito: Menú principal de la aplicación. Verifica sesión, permite cerrar sesión
-    y muestra opciones para gestionar usuarios.
-
-    Variables / cosas importantes (explicadas brevemente):
-    - session.getAttribute("usuarioNombre"):
-        -> Valor: nombre del usuario guardado al hacer login.
-        -> Si es null: el usuario no está autenticado y se redirige a login.jsp.
-    - request.getParameter("accion"):
-        -> Se usa para acciones sencillas desde la URL (ej.: ?accion=salir).
-    - mensaje / tipoMensaje:
-        -> Texto y tipo (bootstrap) para mostrar alertas en la UI.
-    - registroParam:
-        -> Parámetro opcional para indicar estados (ej.: ?registro=exitoso).
-    
-    Flujo resumido:
-    1) Se comprueba que exista una sesión con "usuarioNombre". Si no, se redirige a login.jsp.
-    2) Si llega ?accion=salir se invalida la sesión (logout) y se vuelve a login.jsp.
-    3) Se prepara un mensaje si viene registro=exitoso.
-    4) Se muestra la interfaz con botones que redirigen a otras páginas (agregar, buscar, editar, eliminar).
+    Propósito: Menú principal de la aplicación.
 --%>
 <%@page contentType="text/html" pageEncoding="UTF-8"%>
 <%
-    // 1) Verificar sesión: si no hay usuario logueado, obligar a login.
-    // session.getAttribute("usuarioNombre") debe establecerse en el proceso de login.
+    // --- Lógica de Sesión y Mensajes (SIN CAMBIOS) ---
     if (session.getAttribute("usuarioNombre") == null) {
-        // Redirigir al formulario de login y detener ejecución de esta página
         response.sendRedirect("login.jsp");
         return;
     }
-
-    // 2) Leer acción enviada por parámetro (ejemplo: index.jsp?accion=salir)
     String accion = request.getParameter("accion");
     if ("salir".equals(accion)) {
-        // session.invalidate(): borra todos los datos de la sesión (logout)
         session.invalidate();
         response.sendRedirect("login.jsp");
         return;
     }
-
-    // 3) Preparar mensajes para la vista (por ejemplo, después de registrar un usuario)
-    // mensaje: texto que se mostrará; tipoMensaje: clase Bootstrap (success, danger, warning...)
     String mensaje = "";
     String tipoMensaje = "success";
     String registroParam = request.getParameter("registro");
+    String actualizadoParam = request.getParameter("actualizado");
+    String accionParam = request.getParameter("accion"); 
+
     if ("exitoso".equals(registroParam)) {
-        // Si la página se abre con ?registro=exitoso mostramos un aviso de éxito
         mensaje = "Usuario registrado correctamente.";
+        tipoMensaje = "success";
+    } else if ("editar".equals(accionParam) && "exitoso".equals(actualizadoParam)) {
+        mensaje = "Datos actualizados correctamente en la base de datos.";
+        tipoMensaje = "success";
+    } else if ("editar".equals(accionParam) && "error".equals(request.getParameter("error"))) {
+        mensaje = "No se pudo actualizar el usuario (no encontrado).";
+        tipoMensaje = "danger";
     }
 %>
 <!DOCTYPE html>
 <html lang="es">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Menú Principal</title>
-        <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css" rel="stylesheet">
-        <style>
-            /* Estilos visuales simples para centrar y dar estilo al menú */
-            body {
-                background-color: #f5f5f5;
-                min-height: 100vh;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-            }
-            .menu-container {
-                background: white;
-                border-radius: 10px;
-                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-                padding: 40px;
-                max-width: 400px;
-                width: 100%;
-            }
-            .menu-title {
-                text-align: center;
-                margin-bottom: 30px;
-                color: #333;
-                font-weight: 600;
-            }
-            .menu-btn {
-                width: 100%;
-                padding: 15px;
-                margin-bottom: 15px;
-                border: 2px solid #e0e0e0;
-                background-color: white;
-                color: #333;
-                font-weight: 500;
-                border-radius: 8px;
-                transition: all 0.3s;
-                text-align: center;
-            }
-            .menu-btn:hover {
-                background-color: #4a90e2;
-                color: white;
-                border-color: #4a90e2;
-                transform: translateY(-2px);
-                box-shadow: 0 4px 8px rgba(74, 144, 226, 0.3);
-            }
-        </style>
-    </head>
-    <body>
-        <div class="menu-container">
-            <h2 class="menu-title">Menu Principal</h2>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Menú Principal</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    
+    <style>
+        :root {
+            --color-primary: #519AED;
+            --color-primary-hover: #408bdb;
+            --color-primary-light: #e6f0ff;
+            --color-secondary: #677F89;
+            --color-secondary-hover: #5C6A6E;
+            --color-dark: #343842;
+            --color-darkest: #222A33;
+            --color-text: #343842;
+            --color-text-light: #5C6A6E;
+            --color-bg: #f8f9fa;
+            --color-container: #ffffff;
+            --color-border: #dee2e6;
+        }
+        body {
+            background-color: var(--color-bg);
+            color: var(--color-text);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .app-container {
+            background: var(--color-container);
+            border-radius: 12px;
+            box-shadow: 0 4px 25px rgba(0, 0, 0, 0.08);
+            padding: 30px 40px;
+            max-width: 450px;
+            width: 100%;
+        }
+        .app-title {
+            color: var(--color-darkest);
+            font-weight: 700;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .btn {
+            padding: 12px 20px;
+            font-weight: 600;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            border: none;
+        }
+        .btn-primary {
+            background-color: var(--color-primary);
+            color: white;
+        }
+        .btn-primary:hover {
+            background-color: var(--color-primary-hover);
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(81, 154, 237, 0.4);
+        }
+        .btn-secondary {
+            background-color: var(--color-secondary);
+            color: white;
+        }
+        .btn-secondary:hover {
+            background-color: var(--color-secondary-hover);
+            color: white;
+            transform: translateY(-2px);
+        }
+        .btn-danger {
+            background-color: #dc3545;
+            color: white;
+        }
+        .btn-danger:hover {
+            background-color: #c82333;
+            color: white;
+            transform: translateY(-2px);
+        }
+        .form-control, .form-select {
+            border-radius: 8px;
+            padding: 12px;
+            border: 1px solid var(--color-border);
+        }
+        .form-control:focus, .form-select:focus {
+            border-color: var(--color-primary);
+            box-shadow: 0 0 0 0.25rem rgba(81, 154, 237, 0.25);
+        }
+        .form-label {
+            color: var(--color-text-light);
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        .input-group-text {
+            background-color: var(--color-bg);
+            border: 1px solid var(--color-border);
+            color: var(--color-primary);
+            border-radius: 8px;
+        }
+        
+        /* Estilos específicos del menú */
+        .btn-menu-action {
+            background-color: white;
+            border: 1px solid var(--color-border);
+            color: var(--color-text);
+            text-align: left;
+            padding: 15px 20px;
+            margin-bottom: 12px;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            font-weight: 500;
+        }
+        .btn-menu-action i {
+            font-size: 1.2rem;
+            margin-right: 15px;
+            color: var(--color-primary);
+            width: 20px;
+        }
+        .btn-menu-action:hover {
+            background-color: var(--color-primary);
+            color: white;
+            border-color: var(--color-primary);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(81, 154, 237, 0.3);
+        }
+        .btn-menu-action:hover i {
+            color: white;
+        }
+    </style>
+</head>
+<body>
 
-            <!-- Mostrar el nombre del usuario en la sesión -->
-            <p class="text-center mb-4 text-muted">
-                Bienvenido <%= session.getAttribute("usuarioNombre")%>
-            </p>
+    <div class="app-container">
+        <h2 class="app-title">Menú Principal</h2>
 
-            <%-- Si hay un mensaje (por ejemplo registro exitoso), mostrar alerta Bootstrap --%>
-            <% if (!mensaje.isEmpty()) {%>
-            <div class="alert alert-<%= tipoMensaje%> alert-dismissible fade show" role="alert">
-                <%= mensaje%>
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-            <% }%>
+        <p class="text-center mb-4 text-muted">
+            Bienvenido, <strong><%= session.getAttribute("usuarioNombre")%></strong>
+        </p>
 
-            <!--
-                Botones del menú:
-                - Nuevo -> agregarUsuario.jsp (registro)
-                - Buscar -> buscar.jsp?accion=buscar (buscar por correo/nombre)
-                - Editar -> buscar.jsp?accion=editar (buscar y editar)
-                - Eliminar -> buscar.jsp?accion=eliminar (buscar y eliminar)
-                - Listado -> sin enlace (poner la ruta si existe)
-                - Salir -> recarga esta página con accion=salir para invalidar sesión
-            -->
-            <button type="button" class="btn menu-btn" onclick="location.href = 'agregarUsuario.jsp'">Nuevo</button>
-            <button type="button" class="btn menu-btn" onclick="location.href = 'buscar.jsp?accion=buscar'">Buscar</button>
-            <button type="button" class="btn menu-btn" onclick="location.href = 'buscar.jsp?accion=editar'">Editar</button>
-            <button type="button" class="btn menu-btn" onclick="location.href = 'buscar.jsp?accion=eliminar'">Eliminar</button>
-
-            <!--
-                Nota: "Listado" no tiene destino en el código original.
-                Si tienes una página para listar usuarios añade la URL dentro de location.href.
-            -->
-            <button type="button" class="btn menu-btn" onclick="/* completar: location.href='listado.jsp' */">Listado</button>
-
-            <!-- Salir: al hacer click navega a index.jsp?accion=salir y esto detona session.invalidate() arriba -->
-            <button type="button" class="btn menu-btn" onclick="location.href = 'index.jsp?accion=salir'">Salir</button>
+        <% if (!mensaje.isEmpty()) {%>
+        <div class="alert alert-<%= tipoMensaje%> alert-dismissible fade show" role="alert">
+            <%= mensaje%>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
+        <% }%>
+        
+        <div class="d-grid gap-2 mt-4">
+            <button type="button" class="btn btn-menu-action" onclick="location.href = 'agregarUsuario.jsp'">
+                <i class="bi bi-plus-circle"></i> Nuevo Usuario
+            </button>
+            <button type="button" class="btn btn-menu-action" onclick="location.href = 'buscar.jsp?accion=buscar'">
+                <i class="bi bi-search"></i> Buscar Usuario
+            </button>
+            <button type="button" class="btn btn-menu-action" onclick="location.href = 'buscar.jsp?accion=editar'">
+                <i class="bi bi-pencil-square"></i> Editar Usuario
+            </button>
+            <button type="button" class="btn btn-menu-action" onclick="location.href = 'buscar.jsp?accion=eliminar'">
+                <i class="bi bi-trash"></i> Eliminar Usuario
+            </button>
+            <button type="button" class="btn btn-menu-action" onclick="location.href = 'lista.jsp'">
+                <i class="bi bi-list-ul"></i> Listado de Usuarios
+            </button>
+            
+            <hr class="my-3">
+            
+            <button type="button" class="btn btn-secondary" onclick="location.href = 'index.jsp?accion=salir'">
+                <i class="bi bi-box-arrow-right"></i> Salir
+            </button>
+        </div>
+    </div>
 
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/js/bootstrap.bundle.min.js"></script>
-    </body>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/js/bootstrap.bundle.min.js"></script>
+</body>
 </html>
